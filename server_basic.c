@@ -43,6 +43,27 @@
 #define SEND_SOCKET_BUFFER_SIZE SEND_SOCKET_BUFFER_SIZE_IN_K * 1024
 
 #include "bearssl.h"
+#include <stdio.h>
+
+static void debug_print(const char* format, ...)
+{
+	char* message;
+	uint32_t length;
+	va_list args;
+
+    va_start(args, format);
+
+	length = _vsnprintf(NULL, 0, format, args);
+
+	message = (char*)malloc(length + 1);
+	_vsnprintf(message, length, format, args);
+	message[length] = 0;
+
+    va_end(args);
+
+	OutputDebugStringA(message);
+	free(message);
+}
 
 static int init_network_server()
 {
@@ -408,9 +429,9 @@ main_server_test()
 	client_drop:
 		err = br_ssl_engine_last_error(&sc.eng);
 		if (err == 0) {
-			//fprintf(stderr, "SSL closed (correctly).\n");
+			debug_print("SSL closed (correctly).\n");
 		} else {
-			//fprintf(stderr, "SSL error: %d\n", err);
+			debug_print("SSL error: %d\n", err);
 		}
 		closesocket(cfd);
 	}
