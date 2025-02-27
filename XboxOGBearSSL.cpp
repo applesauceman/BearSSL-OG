@@ -7,8 +7,8 @@
 
 void __cdecl main()
 {
-	//main_client_test();
-	main_server_test();
+	main_client_test();
+	//main_server_test();
 }
 
 

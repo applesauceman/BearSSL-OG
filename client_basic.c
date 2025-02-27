@@ -79,15 +79,15 @@ static int init_network()
  * Connect to the specified host and port. The connected socket is
  * returned, or -1 on error.
  */
-static int host_connect(const char *host, const char *port)
+static int host_connect(unsigned long host, int port)
 {
 	int fd;
     struct sockaddr_in server_addr;
 
 	memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(atoi(port));
-	server_addr.sin_addr.S_un.S_addr = inet_addr(host);
+    server_addr.sin_port = htons(port);
+	server_addr.sin_addr.S_un.S_addr = host;
 
     // Create socket
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -218,10 +218,81 @@ static br_x509_trust_anchor TAs[2];
  * response, complete with header and contents, is received and written
  * on stdout.
  */
+
+#define SERVER "winamp.com"
+#define PORT "443"
+#define REQUEST "GET / HTTP/1.1\r\nHost: " SERVER "\r\nConnection: close\r\n\r\n"
+
+//void fetch_https() {
+//    int sock;
+//    struct addrinfo hints, *res;
+//    br_ssl_client_context sc;
+//    br_x509_minimal_context xc;
+//    br_sslio_context ioc;
+//    unsigned char iobuf[4096];
+//    br_x509_trust_anchor ta;
+//
+//    // Resolve the server address
+//    memset(&hints, 0, sizeof(hints));
+//    hints.ai_family = AF_INET;
+//    hints.ai_socktype = SOCK_STREAM;
+//    getaddrinfo(SERVER, PORT, &hints, &res);
+//
+//    // Create socket and connect
+//    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+//    connect(sock, res->ai_addr, res->ai_addrlen);
+//    freeaddrinfo(res);
+//
+//    // Initialize SSL client
+//    br_ssl_client_init_full(&sc, &xc, br_trust_anchors, br_trust_anchors_num);
+//    br_ssl_engine_set_buffer(&sc.eng, iobuf, sizeof(iobuf), 1);
+//    br_ssl_client_reset(&sc, SERVER, 0);
+//
+//    // Attach I/O to SSL engine
+//    br_sslio_init(&ioc, &sc.eng, read, &sock, write, &sock);
+//
+//    // Send HTTPS request
+//    br_sslio_write_all(&ioc, REQUEST, strlen(REQUEST));
+//    br_sslio_flush(&ioc);
+//
+//    // Read response
+//    char response[1024];
+//    int len;
+//    while ((len = br_sslio_read(&ioc, response, sizeof(response) - 1)) > 0) {
+//        response[len] = '\0';
+//        printf("%s", response);
+//    }
+//
+//    // Cleanup
+//    closesocket(sock);
+//}
+
+unsigned long dns_test(const char* host)
+{
+	WSAEVENT hEvent;
+	XNDNS* pxndns;
+	INT err;
+	unsigned long result;
+
+	result = -1;
+	hEvent = WSACreateEvent();
+	pxndns = NULL;
+	err = XNetDnsLookup("winamp.com", hEvent, &pxndns);
+	WaitForSingleObject(hEvent, INFINITE);
+	if (pxndns->iStatus == 0 && pxndns->cina > 0)
+	{
+		result = pxndns->aina[0].S_un.S_addr;
+	}
+	XNetDnsRelease(pxndns);
+	return result;
+}
+
 int
 main_client_test()
 {
-	const char *host, *host_ip, *port, *path;
+	const char *host, *path;
+	unsigned long host_ip;
+	int port;
 	int fd;
 	br_ssl_client_context sc;
 	br_x509_minimal_context xc;
@@ -247,14 +318,23 @@ main_client_test()
 	anchor2.pkey.key.ec.curve = BR_EC_secp256r1;
 	anchor2.pkey.key.ec.q = (unsigned char *)TA1_EC_Q;
 	anchor2.pkey.key.ec.qlen = sizeof(TA1_EC_Q);
-	TAs[0] = anchor2;
+	TAs[1] = anchor2;
+
+	//host = "github.com";
+	host = "winamp.com";
 
 	init_network();
+	host_ip = dns_test(host);
 
-	host = "github.com";
-	host_ip = "140.82.112.3";
-	port = "443";
-	path = "/Team-Resurgent/Modxo/releases/download/V1.0.8/modxo_official_pico.bin";
+
+
+	
+
+	//host_ip = "140.82.112.3";
+	//host_ip = "35.71.142.77";
+	port = 443;
+	//path = "/Team-Resurgent/Modxo/releases/download/V1.0.8/modxo_official_pico.bin";
+	path = "/";
 
 
 	/*
@@ -329,18 +409,22 @@ main_client_test()
 	for (;;) {
 		int rlen;
 		unsigned char tmp[512];
+		memset(tmp, 0, sizeof(tmp));
 
 		rlen = br_sslio_read(&ioc, tmp, sizeof tmp);
 		if (rlen < 0) {
 			break;
 		}
+
+
+		OutputDebugStringA(tmp);
 		//fwrite(tmp, 1, rlen, stdout);
 	}
 
 	/*
 	 * Close the socket.
 	 */
-	//close(fd);
+	closesocket(fd);
 
 	/*
 	 * Check whether we closed properly or not. If the engine is

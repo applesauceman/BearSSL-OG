@@ -268,7 +268,7 @@ static const char *HTTP_RES =
 int
 main_server_test()
 {
-	const char *port;
+	int port;
 	int fd;
 
 	init_network_server();
