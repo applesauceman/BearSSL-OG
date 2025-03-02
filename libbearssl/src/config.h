@@ -207,7 +207,7 @@
  * automatically detected. If set explicitly to 0, then SSE2 code will
  * not be compiled at all.
  *
-#define BR_SSE2   1
+#define BR_SSE2   0
  */
 
 /*
@@ -226,7 +226,7 @@
  * unsigned multiplications. This should work with GCC and compatible
  * compilers on 64-bit architectures.
  *
-#define BR_INT128   1
+#define BR_INT128   0
  */
 
 /*
@@ -234,7 +234,7 @@
  * '_addcarry_u64()' intrinsics will be used to implement 64x64->128
  * unsigned multiplications. This should work on Visual C on x64 systems.
  *
-#define BR_UMUL128   1
+#define BR_UMUL128   0
  */
 
 /*

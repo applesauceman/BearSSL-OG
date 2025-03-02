@@ -54,7 +54,7 @@
 				Name="XboxDeploymentTool"/>
 			<Tool
 				Name="XboxImageTool"
-				StackSize="65536"
+				StackSize="165536"
 				IncludeDebugInfo="TRUE"
 				NoLibWarn="TRUE"/>
 		</Configuration>
@@ -269,13 +269,28 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
-				RelativePath=".\client_basic.c">
+				RelativePath=".\certificates.cpp">
 			</File>
 			<File
-				RelativePath=".\custom_profile.c">
+				RelativePath=".\client.cpp">
 			</File>
 			<File
-				RelativePath=".\server_basic.c">
+				RelativePath=".\data_store.cpp">
+			</File>
+			<File
+				RelativePath=".\debug_utility.cpp">
+			</File>
+			<File
+				RelativePath=".\main.cpp">
+			</File>
+			<File
+				RelativePath=".\network_utility.cpp">
+			</File>
+			<File
+				RelativePath=".\server.cpp">
+			</File>
+			<File
+				RelativePath=".\socket_utility.cpp">
 			</File>
 			<File
 				RelativePath=".\stdafx.cpp">
@@ -311,7 +326,13 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\XboxOGBearSSL.cpp">
+				RelativePath=".\string_utility.cpp">
+			</File>
+			<File
+				RelativePath=".\trust_anchors.h">
+			</File>
+			<File
+				RelativePath=".\url_utility.cpp">
 			</File>
 			<Filter
 				Name="bearssl"
@@ -1253,6 +1274,9 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
 			<File
+				RelativePath=".\certificates.h">
+			</File>
+			<File
 				RelativePath=".\chain-ec+rsa.h">
 			</File>
 			<File
@@ -1262,7 +1286,13 @@
 				RelativePath=".\chain-rsa.h">
 			</File>
 			<File
-				RelativePath=".\imports.h">
+				RelativePath=".\client.h">
+			</File>
+			<File
+				RelativePath=".\data_store.h">
+			</File>
+			<File
+				RelativePath=".\debug_utility.h">
 			</File>
 			<File
 				RelativePath=".\key-ec.h">
@@ -1271,10 +1301,28 @@
 				RelativePath=".\key-rsa.h">
 			</File>
 			<File
+				RelativePath=".\network_utility.h">
+			</File>
+			<File
+				RelativePath=".\pointer_vector.h">
+			</File>
+			<File
+				RelativePath=".\server.h">
+			</File>
+			<File
+				RelativePath=".\socket_utility.h">
+			</File>
+			<File
 				RelativePath=".\stdafx.h">
 			</File>
 			<File
 				RelativePath=".\missing\stdint.h">
+			</File>
+			<File
+				RelativePath=".\string_utility.h">
+			</File>
+			<File
+				RelativePath=".\url_utility.h">
 			</File>
 			<Filter
 				Name="bearssl"

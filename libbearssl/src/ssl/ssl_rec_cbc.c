@@ -86,7 +86,7 @@ cond_rotate(uint32_t ctl, unsigned char *buf, size_t len, size_t num)
 	size_t u, v;
 
 	for (u = 0, v = num; u < len; u ++) {
-		tmp[u] = MUX(ctl, buf[v], buf[u]);
+		tmp[u] = (unsigned char)MUX(ctl, buf[v], buf[u]);
 		if (++ v == len) {
 			v = 0;
 		}

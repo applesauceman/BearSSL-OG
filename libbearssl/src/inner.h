@@ -228,7 +228,7 @@
  * MS Visual C thresholds are on Visual Studio 2005 to 2015.
  */
 #ifndef BR_MSC
-#if _MSC_VER
+#if _MSC_VER && !defined(_XBOX)
 #define BR_MSC   1
 
 #if _MSC_VER >= 1900
