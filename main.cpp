@@ -34,10 +34,13 @@ void __cdecl main()
 	const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/zip/refs/tags/V1.5.0";
 	const char* file_path = "E:\\testfile.bin";
 
+	//client::download_file(url, file_path);
+
+	server::start();
+
 	while (true) 
 	{
-		client::download_file(url, file_path);
-		Sleep(30000);
+		Sleep(100);
 	}
 }
 

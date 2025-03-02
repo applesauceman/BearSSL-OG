@@ -1,28 +1,13 @@
 #include "server.h"
 #include "debug_utility.h"
+#include "socket_utility.h"
 
 #include <xtl.h>
 #include <winsockx.h>
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <stdint.h>
-//#include <errno.h>
-//#include <signal.h>
-//
-//#include <sys/types.h>
-//#include <sys/socket.h>
-//#include <netdb.h>
-//#include <netinet/in.h>
-//#include <arpa/inet.h>
-//#include <unistd.h>
-#define RECV_SOCKET_BUFFER_SIZE_IN_K 64
-#define RECV_SOCKET_BUFFER_SIZE RECV_SOCKET_BUFFER_SIZE_IN_K * 1024
-#define SEND_SOCKET_BUFFER_SIZE_IN_K 64
-#define SEND_SOCKET_BUFFER_SIZE SEND_SOCKET_BUFFER_SIZE_IN_K * 1024
-
-#include "bearssl.h"
 #include <stdio.h>
+
+#include <bearssl.h>
+
 
 #if !(SERVER_RSA || SERVER_EC || SERVER_MIXED)
 #define SERVER_RSA     1
@@ -46,126 +31,6 @@
 #error Must use one of RSA, EC or MIXED chains.
 #endif
 
-/*
- * Create a server socket bound to the specified host and port. If 'host'
- * is NULL, this will bind "generically" (all addresses).
- *
- * Returned value is the server socket descriptor, or -1 on error.
- */
-static int
-host_bind(int port)
-{
-	SOCKADDR_IN si;
-	int fd;
-	int Reuse = 1;
-	int err;
-
-	fd = socket(AF_INET, SOCK_STREAM, 0);
-
-	Reuse = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&Reuse, sizeof(Reuse)) < 0)
-	{
-		return -1;
-	}
-
-	memset(&si, 0, sizeof(SOCKADDR_IN));
-	si.sin_addr.s_addr = INADDR_ANY;
-	si.sin_family = AF_INET;
-	si.sin_port = htons(port);		
-
-	if (bind(fd, (struct sockaddr *)&si, sizeof(si)) == SOCKET_ERROR)
-	{
-		err = WSAGetLastError();
-		return -1;
-	}
-
-	if (listen(fd, 5) < 0)
-	{
-		return -1;
-	}
-
-	return fd;
-}
-
-/*
- * Accept a single client on the provided server socket. This is blocking.
- * On error, this returns -1.
- */
-static int
-accept_client(int server_fd)
-{
-	int fd;
-	struct sockaddr sa;
-	int sa_len;
-	//char tmp[INET6_ADDRSTRLEN + 50];
-
-	sa_len = sizeof(sa);
-	fd = accept(server_fd, &sa, &sa_len);
-	if (fd == INVALID_SOCKET) {
-		return -1;
-	}
-
-	//ntohs(sa.sa_data.sin_port)
-
-	/*name = NULL;
-	switch (sa.sa_family) {
-	case AF_INET:
-		name = inet_ntop(AF_INET, &((struct sockaddr_in *)&sa)->sin_addr, tmp, sizeof tmp);
-		break;
-	}
-	if (name == NULL) {
-		sprintf(tmp, "<unknown: %lu>", (unsigned long)sa.sa_family);
-		name = tmp;
-	}*/
-	//fprintf(stderr, "accepting connection from: %s\n", name);
-	return fd;
-}
-
-/*
- * Low-level data read callback for the simplified SSL I/O API.
- */
-static int
-sock_read(void *ctx, unsigned char *buf, size_t len)
-{
-	for (;;) {
-		ssize_t rlen;
-		int sock = *(int *)ctx;
-
-        rlen = recv(sock, (char*)buf, len, 0);  // Use recv() for reading from a socket
-        if (rlen == SOCKET_ERROR) {
-            if (WSAGetLastError() == WSAEINTR) {
-                continue;  // Interrupted system call, retry
-            }
-            return -1;  // Other error
-        }
-		return (int)rlen;
-	}
-}
-
-/*
- * Low-level data write callback for the simplified SSL I/O API.
- */
-static int
-sock_write(void *ctx, const unsigned char *buf, size_t len)
-{
-	for (;;) {
-        int wlen;
-        int sock = *(int *)ctx;
-
-        wlen = send(sock, (const char *)buf, len, 0);  // Use send() for writing to a socket
-        if (wlen == SOCKET_ERROR) {
-            if (WSAGetLastError() == WSAEINTR) {
-                continue;  // Interrupted system call, retry
-            }
-            return -1;  // Other error
-        }
-        return wlen;  // Return number of bytes written
-    }
-}
-
-/*
- * Sample HTTP response to send.
- */
 static const char *HTTP_RES =
 	"HTTP/1.0 200 OK\r\n"
 	"Content-Length: 46\r\n"
@@ -174,29 +39,16 @@ static const char *HTTP_RES =
 	"\r\n"
 	"<html>\r\n"
 	"<body>\r\n"
-	"<p>Test!</p>\r\n"
+	"<p>BearSSL Test!</p>\r\n"
 	"</body>\r\n"
 	"</html>\r\n";
 
-/*
- * Main program: this is a simple program that expects 1 argument: a
- * port number. This will start a simple network server on that port,
- * that expects incoming SSL clients. It handles only one client at a
- * time (handling several would require threads, sub-processes, or
- * multiplexing with select()/poll(), all of which being possible).
- *
- * For each client, the server will wait for two successive newline
- * characters (ignoring CR characters, so CR+LF is accepted), then
- * produce a sample static HTTP response. This is very crude, but
- * sufficient for explanatory purposes.
- */
-int server::main_server_test()
+int server::start()
 {
-	int port;
 	int fd;
 
 
-	port = 443;
+	int port = 443;
 
 	/*
 	 * Ignore SIGPIPE to avoid crashing in case of abrupt socket close.
@@ -206,7 +58,7 @@ int server::main_server_test()
 	/*
 	 * Open the server socket.
 	 */
-	fd = host_bind(port);
+	fd = socket_utility::host_bind(port);
 	if (fd == INVALID_SOCKET) {
 		return EXIT_FAILURE;
 	}
@@ -214,31 +66,19 @@ int server::main_server_test()
 	/*
 	 * Process each client, one at a time.
 	 */
-	for (;;) {
+	while (true)
+	{
 		int cfd;
 		br_ssl_server_context sc;
 		unsigned char iobuf[BR_SSL_BUFSIZE_BIDI];
 		br_sslio_context ioc;
 		int lcwn, err;
 
-		cfd = accept_client(fd);
+		cfd = socket_utility::accept_client(fd);
 		if (cfd == INVALID_SOCKET) {
 			return EXIT_FAILURE;
 		}
 
-		/*
-		 * Initialise the context with the cipher suites and
-		 * algorithms. This depends on the server key type
-		 * (and, for EC keys, the signature algorithm used by
-		 * the CA to sign the server's certificate).
-		 *
-		 * Depending on the defined macros, we may select one of
-		 * the "minimal" profiles. Key exchange algorithm depends
-		 * on the key type:
-		 *   RSA key: RSA or ECDHE_RSA
-		 *   EC key, cert signed with ECDSA: ECDH_ECDSA or ECDHE_ECDSA
-		 *   EC key, cert signed with RSA: ECDH_RSA or ECDHE_ECDSA
-		 */
 #if SERVER_RSA
 #if SERVER_PROFILE_MIN_FS
 #if SERVER_CHACHA20
@@ -296,13 +136,14 @@ int server::main_server_test()
 		/*
 		 * Initialise the simplified I/O wrapper context.
 		 */
-		br_sslio_init(&ioc, &sc.eng, sock_read, &cfd, sock_write, &cfd);
+		br_sslio_init(&ioc, &sc.eng, socket_utility::socket_read, &cfd, socket_utility::socket_write, &cfd);
 
 		/*
 		 * Read bytes until two successive LF (or CR+LF) are received.
 		 */
 		lcwn = 0;
-		for (;;) {
+		while (true)
+		{
 			unsigned char x;
 
 			if (br_sslio_read(&ioc, &x, 1) < 0) {

@@ -3,5 +3,5 @@
 class server
 {
 public:
-	static int main_server_test();
+	static int start();
 };
