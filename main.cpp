@@ -36,6 +36,18 @@ void __cdecl main()
 	const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/zip/refs/tags/V1.5.0";
 	const char* file_path = "E:\\testfile.bin";
 
+	//With Redirect
+	//const char* url = "https://github.com/Team-Resurgent/Modxo/releases/download/V1.0.8/modxo_official_pico.bin";
+	//const char* file_path = "E:\\modxo_official_pico.bin";
+
+	//Chunked (saves as webp)
+	//const char* url = "https://www.etechnophiles.com/wp-content/uploads/2021/02/pinout_923x768.jpg";
+	//const char* file_path = "E:\\pinout_923x768.webp";
+
+	//Non Chunked
+	//const char* url = "https://download.winamp.com/winamp/winamp_latest_full.exe";
+	//const char* file_path = "E:\\winamp_latest_full.exe";
+
 	client::download_file(url, port, file_path);
 
 	//server::start();
