@@ -36,6 +36,12 @@ int socket_utility::host_bind(uint16_t port)
 		return -1;
 	}
 
+	uint32_t non_blocking = 1;
+	if (ioctlsocket((SOCKET)bind_socket, FIONBIO, &non_blocking) == SOCKET_ERROR)
+	{
+		return -1;
+	}
+
 	SOCKADDR_IN address_in;
 	memset(&address_in, 0, sizeof(SOCKADDR_IN));
 	address_in.sin_addr.s_addr = INADDR_ANY;
@@ -53,6 +59,24 @@ int socket_utility::host_bind(uint16_t port)
 	}
 
 	return bind_socket;
+}
+
+int socket_utility::get_read_status(int socket)
+{
+	static const timeval instantSpeedPlease = { 0,0 };
+	fd_set a = { 1, {(SOCKET)socket} };
+
+	int result = select(0, &a, 0, 0, &instantSpeedPlease);
+	if (result == SOCKET_ERROR)
+	{
+		result = WSAGetLastError();
+	}
+
+	if (result != 0 && result != 1)
+	{
+		return SOCKET_ERROR;
+	}
+	return result;
 }
 
 int socket_utility::accept_client(int server_socket)

@@ -31,13 +31,14 @@
 
 static const char *HTTP_RES =
 	"HTTP/1.0 200 OK\r\n"
-	"Content-Length: 46\r\n"
+	//"Content-Length: 46\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html; charset=iso-8859-1\r\n"
 	"\r\n"
+	"<head><link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css\"></head>"
 	"<html>\r\n"
 	"<body>\r\n"
-	"<p>BearSSL Test by EqUiNoX</p>\r\n"
+	"<main class=\"container\"><h1>BearSSL Test by EqUiNoX</h1><a href=\"https://doomonline1.vercel.app/dos.html\" target=\"_blank\">Play Doom</a></main>\r\n"
 	"</body>\r\n"
 	"</html>\r\n";
 
@@ -55,7 +56,23 @@ static uint64_t WINAPI process(void* data)
 
 	while (true)
 	{
-		int client_socket = socket_utility::accept_client(socket);
+		int read_status = socket_utility::get_read_status(socket);
+		if (read_status == SOCKET_ERROR)
+		{
+			return EXIT_FAILURE;
+		}
+
+		int client_socket = INVALID_SOCKET;
+		if (read_status == 1)
+		{
+			client_socket = socket_utility::accept_client(socket);
+		}
+		else
+		{
+			Sleep(500);
+			continue;
+		}
+
 		if (client_socket == INVALID_SOCKET) 
 		{
 			return EXIT_FAILURE;
@@ -99,8 +116,8 @@ static uint64_t WINAPI process(void* data)
 #else
 		br_ssl_server_init_full_ec(&sc, CHAIN, CHAIN_LEN, BR_KEYTYPE_RSA, &SKEY);
 #endif
-
 #endif
+
 		br_ssl_engine_set_buffer(&server_context.eng, io_buffer, BR_SSL_BUFSIZE_BIDI, 1);
 		br_ssl_server_reset(&server_context);
 
