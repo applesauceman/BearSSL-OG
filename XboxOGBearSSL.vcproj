@@ -1277,6 +1277,12 @@
 				RelativePath=".\certificates.h">
 			</File>
 			<File
+				RelativePath=".\chain-ec+rsa.h">
+			</File>
+			<File
+				RelativePath=".\chain-ec.h">
+			</File>
+			<File
 				RelativePath=".\chain-rsa.h">
 			</File>
 			<File
@@ -1287,6 +1293,9 @@
 			</File>
 			<File
 				RelativePath=".\debug_utility.h">
+			</File>
+			<File
+				RelativePath=".\key-ec.h">
 			</File>
 			<File
 				RelativePath=".\key-rsa.h">
