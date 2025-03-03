@@ -5,9 +5,7 @@
 #include <xtl.h>
 #include <winsockx.h>
 #include <stdio.h>
-
 #include <bearssl.h>
-
 
 #if !(SERVER_RSA || SERVER_EC || SERVER_MIXED)
 #define SERVER_RSA     1
@@ -39,70 +37,55 @@ static const char *HTTP_RES =
 	"\r\n"
 	"<html>\r\n"
 	"<body>\r\n"
-	"<p>BearSSL Test!</p>\r\n"
+	"<p>BearSSL Test by EqUiNoX</p>\r\n"
 	"</body>\r\n"
 	"</html>\r\n";
 
-int server::start()
+static uint64_t WINAPI process(void* data) 
 {
-	int fd;
+    uint16_t port = (uint16_t)data;
 
-
-	int port = 443;
-
-	/*
-	 * Ignore SIGPIPE to avoid crashing in case of abrupt socket close.
-	 */
-	//signal(SIGPIPE, SIG_IGN);
-
-	/*
-	 * Open the server socket.
-	 */
-	fd = socket_utility::host_bind(port);
-	if (fd == INVALID_SOCKET) {
+	int socket = socket_utility::host_bind(port);
+	if (socket == INVALID_SOCKET) 
+	{
 		return EXIT_FAILURE;
 	}
 
-	/*
-	 * Process each client, one at a time.
-	 */
+	unsigned char io_buffer[BR_SSL_BUFSIZE_BIDI];
+
 	while (true)
 	{
-		int cfd;
-		br_ssl_server_context sc;
-		unsigned char iobuf[BR_SSL_BUFSIZE_BIDI];
-		br_sslio_context ioc;
-		int lcwn, err;
-
-		cfd = socket_utility::accept_client(fd);
-		if (cfd == INVALID_SOCKET) {
+		int client_socket = socket_utility::accept_client(socket);
+		if (client_socket == INVALID_SOCKET) 
+		{
 			return EXIT_FAILURE;
 		}
 
-#if SERVER_RSA
+		br_ssl_server_context server_context;
+
+#if SERVER_RSA /* RSA */
 #if SERVER_PROFILE_MIN_FS
 #if SERVER_CHACHA20
-		br_ssl_server_init_mine2c(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_mine2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #else
-		br_ssl_server_init_mine2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_mine2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #endif
 #elif SERVER_PROFILE_MIN_NOFS
-		br_ssl_server_init_minr2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_minr2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #else
-		br_ssl_server_init_full_rsa(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_full_rsa(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #endif
-#elif SERVER_EC
+#elif SERVER_EC /* EC */
 #if SERVER_PROFILE_MIN_FS
 #if SERVER_CHACHA20
-		br_ssl_server_init_minf2c(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_minf2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #else
-		br_ssl_server_init_minf2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_minf2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #endif
 #elif SERVER_PROFILE_MIN_NOFS
-		br_ssl_server_init_minv2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
+		br_ssl_server_init_minv2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
 #else
-		br_ssl_server_init_full_ec(&sc, CHAIN, CHAIN_LEN,
-			BR_KEYTYPE_EC, &SKEY);
+		br_ssl_server_init_full_ec(&server_context, CHAIN, CHAIN_LEN, BR_KEYTYPE_EC, &SKEY);
 #endif
 #else /* SERVER_MIXED */
 #if SERVER_PROFILE_MIN_FS
@@ -114,69 +97,76 @@ int server::start()
 #elif SERVER_PROFILE_MIN_NOFS
 		br_ssl_server_init_minu2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
 #else
-		br_ssl_server_init_full_ec(&sc, CHAIN, CHAIN_LEN,
-			BR_KEYTYPE_RSA, &SKEY);
+		br_ssl_server_init_full_ec(&sc, CHAIN, CHAIN_LEN, BR_KEYTYPE_RSA, &SKEY);
 #endif
+
 #endif
-		/*
-		 * Set the I/O buffer to the provided array. We
-		 * allocated a buffer large enough for full-duplex
-		 * behaviour with all allowed sizes of SSL records,
-		 * hence we set the last argument to 1 (which means
-		 * "split the buffer into separate input and output
-		 * areas").
-		 */
-		br_ssl_engine_set_buffer(&sc.eng, iobuf, sizeof iobuf, 1);
+		br_ssl_engine_set_buffer(&server_context.eng, io_buffer, BR_SSL_BUFSIZE_BIDI, 1);
+		br_ssl_server_reset(&server_context);
 
-		/*
-		 * Reset the server context, for a new handshake.
-		 */
-		br_ssl_server_reset(&sc);
+		br_sslio_context io_context;
+		br_sslio_init(&io_context, &server_context.eng, socket_utility::socket_read, &client_socket, socket_utility::socket_write, &client_socket);
 
-		/*
-		 * Initialise the simplified I/O wrapper context.
-		 */
-		br_sslio_init(&ioc, &sc.eng, socket_utility::socket_read, &cfd, socket_utility::socket_write, &cfd);
+		bool client_dropped = false;
 
-		/*
-		 * Read bytes until two successive LF (or CR+LF) are received.
-		 */
-		lcwn = 0;
+		int feed_count = 0;
 		while (true)
 		{
-			unsigned char x;
-
-			if (br_sslio_read(&ioc, &x, 1) < 0) {
-				goto client_drop;
+			unsigned char current_char;
+			if (br_sslio_read(&io_context, &current_char, 1) < 0) 
+			{
+				client_dropped = true;
+				break;
 			}
-			if (x == 0x0D) {
+			if (current_char == 0x0D) 
+			{
 				continue;
 			}
-			if (x == 0x0A) {
-				if (lcwn) {
+			if (current_char == 0x0A) 
+			{
+				if (feed_count == 1) 
+				{
 					break;
 				}
-				lcwn = 1;
-			} else {
-				lcwn = 0;
+				feed_count = 1;
+			} 
+			else 
+			{
+				feed_count = 0;
 			}
 		}
 
-		/*
-		 * Write a response and close the connection.
-		 */
-		br_sslio_write_all(&ioc, HTTP_RES, strlen(HTTP_RES));
-		br_sslio_close(&ioc);
-
-	client_drop:
-		err = br_ssl_engine_last_error(&sc.eng);
-		if (err == 0) {
-			debug_utility::debug_print("SSL closed (correctly).\n");
-		} else {
-			debug_utility::debug_print("SSL error: %d\n", err);
+		if (client_dropped == false)
+		{
+			br_sslio_write_all(&io_context, HTTP_RES, strlen(HTTP_RES));
 		}
-		closesocket(cfd);
+
+		int error = br_ssl_engine_last_error(&server_context.eng);
+		if (error == 0) 
+		{
+			debug_utility::debug_print("SSL closed (correctly).\n");
+		} 
+		else 
+		{
+			debug_utility::debug_print("SSL error: %d\n", error);
+		}
+
+		br_sslio_close(&io_context);
+		closesocket(client_socket);
 	}
+
+	return 0;
+}
+
+void server::start(uint16_t port)
+{
+	thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)process, (void*)port, 0, NULL);
+}
+
+void server::stop()
+{
+	//todo: wait stopped
+	//CloseHandle(thread);
 }
 
 

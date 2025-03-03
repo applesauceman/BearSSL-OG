@@ -48,9 +48,11 @@ void __cdecl main()
 	//const char* url = "https://download.winamp.com/winamp/winamp_latest_full.exe";
 	//const char* file_path = "E:\\winamp_latest_full.exe";
 
-	client::download_file(url, port, file_path);
-
-	//server::start();
+	client* client_instance = new client();
+	//client_instance->download_file(url, port, file_path);
+	
+	server* server_instance = new server();
+	server_instance->start(443);
 
 	while (true) 
 	{
