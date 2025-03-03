@@ -14,8 +14,6 @@
 
 #define READ_BUFFER_SIZE 65536
 
-
-
 int client::download_file(const char* url, uint16_t port, const char* file_path)
 {
 	char *host = NULL;
@@ -127,14 +125,7 @@ int client::download_file(const char* url, uint16_t port, const char* file_path)
 	return EXIT_FAILURE;
 }
 
-
-
-
-
-
-
-
-
+// Private
 
 void client::populate_headers(br_sslio_context io_context, data_store* data, pointer_vector<char*>* headers)
 {
@@ -183,7 +174,6 @@ void client::populate_headers(br_sslio_context io_context, data_store* data, poi
 
 	free(read_buffer);
 }
-
 
 void client::chunk_download(br_sslio_context io_context, data_store* data, const char* file_path)
 {
