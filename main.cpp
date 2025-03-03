@@ -30,13 +30,15 @@ void __cdecl main()
 
 	mount_e_drive();
 
+	uint16_t port = 443;
+
 	//const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/archive/refs/tags/V1.5.0.zip;
 	const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/zip/refs/tags/V1.5.0";
 	const char* file_path = "E:\\testfile.bin";
 
-	//client::download_file(url, file_path);
+	client::download_file(url, port, file_path);
 
-	server::start();
+	//server::start();
 
 	while (true) 
 	{

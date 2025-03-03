@@ -6,6 +6,7 @@ class certificates
 {
 public:
 	static void initialize_trust_anchors();
+	static void close_trust_anchors();
 	static br_x509_trust_anchor* get_trust_anchors();
 	static int get_num_trust_anchors();
 private:

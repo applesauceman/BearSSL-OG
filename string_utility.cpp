@@ -208,3 +208,19 @@ int64_t string_utility::hex_to_int64(const char* hex)
     }
     return result;
 }
+
+int string_utility::find_crlf(unsigned char* buffer, uint32_t length)
+{
+    if (buffer == NULL || length < 2)
+	{
+		return -1;
+	}
+    for (uint32_t i = 0; i < length - 1; ++i) 
+	{
+        if (buffer[i] == '\r' && buffer[i + 1] == '\n') 
+		{
+            return i;
+        }
+    }
+    return -1; 
+}

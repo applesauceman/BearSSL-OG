@@ -770,6 +770,15 @@ void certificates::initialize_trust_anchors()
 	trust_anchors[749] = make_rsa_trust_anchor((unsigned char *)TA749_DN, sizeof TA749_DN, (unsigned char *)TA749_RSA_N, sizeof TA749_RSA_N, (unsigned char *)TA749_RSA_E, sizeof TA749_RSA_E);
 }
 
+void certificates::close_trust_anchors() 
+{
+	if (trust_anchors == NULL)
+	{
+		return;
+	}
+	free(trust_anchors);
+}
+
 br_x509_trust_anchor* certificates::get_trust_anchors()
 {
 	return trust_anchors;
