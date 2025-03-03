@@ -93,9 +93,26 @@ int socket_utility::accept_client(int server_socket)
 
 int socket_utility::socket_read(void *context, unsigned char *buffer, size_t length)
 {
+	int socket = *(int *)context;
+
+	struct timeval tv;
+    fd_set read_fds;
+	
+
     while (true)
 	{
-        int socket = *(int *)context;
+		FD_ZERO(&read_fds );
+		FD_SET(socket, &read_fds );
+
+		tv.tv_sec  = 2;
+		tv.tv_usec = 0;
+
+		int ret = select(socket, &read_fds, NULL, NULL, &tv );
+		if( ret == 0 )
+		{
+			return -1;
+		}
+
         int bytes_read = recv(socket, (char *)buffer, length, 0); 
         if (bytes_read == SOCKET_ERROR) 
 		{

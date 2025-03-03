@@ -29,8 +29,29 @@
 #error Must use one of RSA, EC or MIXED chains.
 #endif
 
+
+#define MAX_NUM_THREADS 5
+
+typedef struct {
+    int client_socket;
+    int thread_complete;
+	uint16_t port;
+} thread_info_t;
+
+typedef struct {
+    int active;
+    thread_info_t data;
+    HANDLE thread;
+} pthread_info_t;
+
+//static thread_info_t base_info;
+static pthread_info_t threads[MAX_NUM_THREADS];
+
 static const char *HTTP_RES =
-	"HTTP/1.0 200 OK\r\n"
+	"HTTP/1.1 200 OK\r\n"
+	"Cache-Control: no-store, no-cache, must-revalidate\r\n"
+	"Pragma: no-cache\r\n"
+	"Expires: 0\r\n"
 	//"Content-Length: 46\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html; charset=iso-8859-1\r\n"
@@ -42,21 +63,122 @@ static const char *HTTP_RES =
 	"</body>\r\n"
 	"</html>\r\n";
 
+
+static void client_process(void* data)
+{
+	thread_info_t *thread_info = (thread_info_t*)data;
+
+	unsigned char io_buffer[BR_SSL_BUFSIZE_BIDI];
+
+	br_ssl_server_context server_context;
+
+#if SERVER_RSA /* RSA */
+#if SERVER_PROFILE_MIN_FS
+#if SERVER_CHACHA20
+	br_ssl_server_init_mine2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_mine2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#endif
+#elif SERVER_PROFILE_MIN_NOFS
+	br_ssl_server_init_minr2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_full_rsa(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#endif
+#elif SERVER_EC /* EC */
+#if SERVER_PROFILE_MIN_FS
+#if SERVER_CHACHA20
+	br_ssl_server_init_minf2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_minf2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#endif
+#elif SERVER_PROFILE_MIN_NOFS
+	br_ssl_server_init_minv2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_full_ec(&server_context, CHAIN, CHAIN_LEN, BR_KEYTYPE_EC, &SKEY);
+#endif
+#else /* SERVER_MIXED */
+#if SERVER_PROFILE_MIN_FS
+#if SERVER_CHACHA20
+	br_ssl_server_init_minf2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_minf2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#endif
+#elif SERVER_PROFILE_MIN_NOFS
+	br_ssl_server_init_minu2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
+#else
+	br_ssl_server_init_full_ec(&server_context, CHAIN, CHAIN_LEN, BR_KEYTYPE_RSA, &SKEY);
+#endif
+#endif
+
+	br_ssl_engine_set_buffer(&server_context.eng, io_buffer, BR_SSL_BUFSIZE_BIDI, 1);
+	br_ssl_server_reset(&server_context);
+
+	br_sslio_context io_context;
+	br_sslio_init(&io_context, &server_context.eng, socket_utility::socket_read, &thread_info->client_socket, socket_utility::socket_write, &thread_info->client_socket);
+
+	bool client_dropped = false;
+
+	int feed_count = 0;
+	while (true)
+	{
+		unsigned char current_char;
+		if (br_sslio_read(&io_context, &current_char, 1) < 0) 
+		{
+			client_dropped = true;
+			break;
+		}
+		if (current_char == 0x0D) 
+		{
+			continue;
+		}
+		if (current_char == 0x0A) 
+		{
+			if (feed_count == 1) 
+			{
+				break;
+			}
+			feed_count = 1;
+		} 
+		else 
+		{
+			feed_count = 0;
+		}
+	}
+
+	if (client_dropped == false)
+	{
+		br_sslio_write_all(&io_context, HTTP_RES, strlen(HTTP_RES));
+	}
+
+	int error = br_ssl_engine_last_error(&server_context.eng);
+	if (error == 0) 
+	{
+		debug_utility::debug_print("SSL closed (correctly).\n");
+	} 
+	else 
+	{
+		debug_utility::debug_print("SSL error: %d\n", error);
+	}
+
+	br_sslio_close(&io_context);
+	closesocket(thread_info->client_socket);
+
+	thread_info->thread_complete = 1;
+}
+
 static uint64_t WINAPI process(void* data) 
 {
     uint16_t port = (uint16_t)data;
 
-	int socket = socket_utility::host_bind(port);
-	if (socket == INVALID_SOCKET) 
+	int listen_socket = socket_utility::host_bind(port);
+	if (listen_socket == INVALID_SOCKET) 
 	{
 		return EXIT_FAILURE;
 	}
 
-	unsigned char io_buffer[BR_SSL_BUFSIZE_BIDI];
-
 	while (true)
 	{
-		int read_status = socket_utility::get_read_status(socket);
+		int read_status = socket_utility::get_read_status(listen_socket);
 		if (read_status == SOCKET_ERROR)
 		{
 			return EXIT_FAILURE;
@@ -65,11 +187,11 @@ static uint64_t WINAPI process(void* data)
 		int client_socket = INVALID_SOCKET;
 		if (read_status == 1)
 		{
-			client_socket = socket_utility::accept_client(socket);
+			client_socket = socket_utility::accept_client(listen_socket);
 		}
 		else
 		{
-			Sleep(500);
+			Sleep(50);
 			continue;
 		}
 
@@ -78,105 +200,41 @@ static uint64_t WINAPI process(void* data)
 			return EXIT_FAILURE;
 		}
 
-		br_ssl_server_context server_context;
-
-#if SERVER_RSA /* RSA */
-#if SERVER_PROFILE_MIN_FS
-#if SERVER_CHACHA20
-		br_ssl_server_init_mine2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_mine2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#endif
-#elif SERVER_PROFILE_MIN_NOFS
-		br_ssl_server_init_minr2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_full_rsa(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#endif
-#elif SERVER_EC /* EC */
-#if SERVER_PROFILE_MIN_FS
-#if SERVER_CHACHA20
-		br_ssl_server_init_minf2c(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_minf2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#endif
-#elif SERVER_PROFILE_MIN_NOFS
-		br_ssl_server_init_minv2g(&server_context, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_full_ec(&server_context, CHAIN, CHAIN_LEN, BR_KEYTYPE_EC, &SKEY);
-#endif
-#else /* SERVER_MIXED */
-#if SERVER_PROFILE_MIN_FS
-#if SERVER_CHACHA20
-		br_ssl_server_init_minf2c(&sc, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_minf2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
-#endif
-#elif SERVER_PROFILE_MIN_NOFS
-		br_ssl_server_init_minu2g(&sc, CHAIN, CHAIN_LEN, &SKEY);
-#else
-		br_ssl_server_init_full_ec(&sc, CHAIN, CHAIN_LEN, BR_KEYTYPE_RSA, &SKEY);
-#endif
-#endif
-
-		br_ssl_engine_set_buffer(&server_context.eng, io_buffer, BR_SSL_BUFSIZE_BIDI, 1);
-		br_ssl_server_reset(&server_context);
-
-		br_sslio_context io_context;
-		br_sslio_init(&io_context, &server_context.eng, socket_utility::socket_read, &client_socket, socket_utility::socket_write, &client_socket);
-
-		bool client_dropped = false;
-
-		int feed_count = 0;
-		while (true)
+		int i;
+		for (i = 0; i < MAX_NUM_THREADS; i++)
 		{
-			unsigned char current_char;
-			if (br_sslio_read(&io_context, &current_char, 1) < 0) 
+			if (threads[i].active == 0)
 			{
-				client_dropped = true;
 				break;
 			}
-			if (current_char == 0x0D) 
+			if (threads[i].data.thread_complete == 1)
 			{
-				continue;
-			}
-			if (current_char == 0x0A) 
-			{
-				if (feed_count == 1) 
-				{
-					break;
-				}
-				feed_count = 1;
-			} 
-			else 
-			{
-				feed_count = 0;
+				CloseHandle(threads[i].thread);
+				memset(&threads[i], 0, sizeof(pthread_info_t));
+				break;
 			}
 		}
 
-		if (client_dropped == false)
+		if (i == MAX_NUM_THREADS)
 		{
-			br_sslio_write_all(&io_context, HTTP_RES, strlen(HTTP_RES));
+			continue;
 		}
 
-		int error = br_ssl_engine_last_error(&server_context.eng);
-		if (error == 0) 
-		{
-			debug_utility::debug_print("SSL closed (correctly).\n");
-		} 
-		else 
-		{
-			debug_utility::debug_print("SSL error: %d\n", error);
-		}
+		threads[i].active = 1;
+		threads[i].data.client_socket = client_socket;
+		threads[i].data.port = port;
+		threads[i].thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)client_process, (void*)&threads[i].data, 0, NULL);;
 
-		br_sslio_close(&io_context);
-		closesocket(client_socket);
+		//client_process(threads[i].data);
 	}
 
 	return 0;
 }
 
+
 void server::start(uint16_t port)
 {
+	memset(threads, 0, sizeof(threads));
 	thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)process, (void*)port, 0, NULL);
 }
 
