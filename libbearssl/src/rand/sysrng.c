@@ -197,14 +197,42 @@ seeder_win32(const br_prng_class **ctx)
 static int
 seeder_xbox(const br_prng_class **ctx)
 {
+	unsigned char buf[32];
 	size_t i;
-    unsigned char buf[32];
-    for (i = 0; i < sizeof(buf); i++) {
-        buf[i] = (unsigned char)(rand() & 0xFF); // Use lower 8 bits of rand()
-    }
+	DWORD tick;
+	LARGE_INTEGER perf_count;
+	DWORD seed_value;
 
-    (*ctx)->update(ctx, buf, sizeof(buf));
-    return 1;
+	/*
+	 * Gather entropy from multiple Xbox sources:
+	 * - GetTickCount(): milliseconds since system boot
+	 * - QueryPerformanceCounter(): high-resolution timer
+	 * - Stack address: adds some ASLR-like unpredictability
+	 */
+	tick = GetTickCount();
+	QueryPerformanceCounter(&perf_count);
+
+	/* Combine entropy sources into a seed */
+	seed_value = tick;
+	seed_value ^= (DWORD)perf_count.LowPart;
+	seed_value ^= (DWORD)perf_count.HighPart;
+	seed_value ^= (DWORD)(size_t)&buf;  /* Stack address */
+
+	/* Seed the random number generator */
+	srand(seed_value);
+
+	/* Generate random bytes with additional mixing */
+	for (i = 0; i < sizeof(buf); i++) {
+		/* Mix in tick count changes for additional entropy */
+		if ((i & 7) == 0) {
+			tick = GetTickCount();
+			seed_value = seed_value * 1103515245 + tick;
+		}
+		buf[i] = (unsigned char)((rand() ^ (seed_value >> (i & 0x1F))) & 0xFF);
+	}
+
+	(*ctx)->update(ctx, buf, sizeof(buf));
+	return 1;
 }
 #endif
 

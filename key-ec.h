@@ -1,7 +1,10 @@
+#ifndef KEY_EC_H__
+#define KEY_EC_H__
+
 /*
  * Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
  *
- * Permission is hereby granted, free of charge, to any person obtaining 
+ * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
  * "Software"), to deal in the Software without restriction, including
  * without limitation the rights to use, copy, modify, merge, publish,
@@ -38,3 +41,5 @@ static const br_ec_private_key EC = {
 	23,
 	(unsigned char *)EC_X, sizeof EC_X
 };
+
+#endif /* KEY_EC_H__ */

@@ -32,7 +32,7 @@ void __cdecl main()
 
 	uint16_t port = 443;
 
-	//const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/archive/refs/tags/V1.5.0.zip;
+	//const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/archive/refs/tags/V1.5.0.zip";
 	const char* url = "https://codeload.github.com/Team-Resurgent/PrometheOS-Firmware/zip/refs/tags/V1.5.0";
 	const char* file_path = "E:\\testfile.bin";
 

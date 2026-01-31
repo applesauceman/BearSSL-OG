@@ -10,6 +10,8 @@
 #include <xtl.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <bearssl.h>
 
 #define READ_BUFFER_SIZE 65536
@@ -46,7 +48,7 @@ int client::download_file(const char* url, uint16_t port, const char* file_path)
 
 	data_store* data = new data_store();
 	pointer_vector<char*>* headers = new pointer_vector<char*>(false);
-	populate_headers(io_context, data, headers);
+	populate_headers(&io_context, data, headers);
 
 	int64_t content_length = -1;
 	char* redirect_url = NULL;
@@ -95,11 +97,11 @@ int client::download_file(const char* url, uint16_t port, const char* file_path)
 
 	if (content_length < 0)
 	{
-		chunk_download(io_context, data, file_path);
+		chunk_download(&io_context, data, file_path);
 	}
 	else
 	{
-		download(io_context, data, file_path, content_length);
+		download(&io_context, data, file_path, content_length);
 	}
 
 	closesocket(socket);
@@ -127,13 +129,13 @@ int client::download_file(const char* url, uint16_t port, const char* file_path)
 
 // Private
 
-void client::populate_headers(br_sslio_context io_context, data_store* data, pointer_vector<char*>* headers)
+void client::populate_headers(br_sslio_context* io_context, data_store* data, pointer_vector<char*>* headers)
 {
 	unsigned char* read_buffer = (unsigned char*)malloc(READ_BUFFER_SIZE);
 
     while (true)
     {
-		int bytes_read = br_sslio_read(&io_context, read_buffer,READ_BUFFER_SIZE);
+		int bytes_read = br_sslio_read(io_context, read_buffer, READ_BUFFER_SIZE);
 		if (bytes_read < 0) 
 		{
 			break;
@@ -175,7 +177,7 @@ void client::populate_headers(br_sslio_context io_context, data_store* data, poi
 	free(read_buffer);
 }
 
-void client::chunk_download(br_sslio_context io_context, data_store* data, const char* file_path)
+void client::chunk_download(br_sslio_context* io_context, data_store* data, const char* file_path)
 {
 	unsigned char* read_buffer = (unsigned char*)malloc(READ_BUFFER_SIZE);
 
@@ -187,7 +189,7 @@ void client::chunk_download(br_sslio_context io_context, data_store* data, const
 	int64_t bytes_written = 0;
     while (true)
     {
-        int bytes_read = br_sslio_read(&io_context, read_buffer,READ_BUFFER_SIZE);
+        int bytes_read = br_sslio_read(io_context, read_buffer, READ_BUFFER_SIZE);
 		if (bytes_read < 0) 
 		{
 			break;
@@ -242,7 +244,7 @@ void client::chunk_download(br_sslio_context io_context, data_store* data, const
 	free(read_buffer);
 }
 
-void client::download(br_sslio_context io_context, data_store* data, const char* file_path, int64_t content_length)
+void client::download(br_sslio_context* io_context, data_store* data, const char* file_path, int64_t content_length)
 {
 	unsigned char* read_buffer = (unsigned char*)malloc(READ_BUFFER_SIZE);
 
@@ -251,7 +253,7 @@ void client::download(br_sslio_context io_context, data_store* data, const char*
 	int64_t bytes_written = 0;
     while (true)
     {
-        int bytes_read = br_sslio_read(&io_context, read_buffer,READ_BUFFER_SIZE);
+        int bytes_read = br_sslio_read(io_context, read_buffer, READ_BUFFER_SIZE);
 		if (bytes_read < 0) 
 		{
 			break;

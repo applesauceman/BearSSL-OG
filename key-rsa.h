@@ -1,7 +1,10 @@
+#ifndef KEY_RSA_H__
+#define KEY_RSA_H__
+
 /*
  * Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
  *
- * Permission is hereby granted, free of charge, to any person obtaining 
+ * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
  * "Software"), to deal in the Software without restriction, including
  * without limitation the rights to use, copy, modify, merge, publish,
@@ -106,3 +109,5 @@ static const br_rsa_private_key RSA = {
 	(unsigned char *)RSA_DQ, sizeof RSA_DQ,
 	(unsigned char *)RSA_IQ, sizeof RSA_IQ
 };
+
+#endif /* KEY_RSA_H__ */

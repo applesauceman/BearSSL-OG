@@ -5,6 +5,7 @@
 #include <xtl.h>
 #include <winsockx.h>
 #include <stdio.h>
+#include <string.h>
 #include <bearssl.h>
 
 #if !(SERVER_RSA || SERVER_EC || SERVER_MIXED)
@@ -44,8 +45,9 @@ typedef struct {
     HANDLE thread;
 } pthread_info_t;
 
-//static thread_info_t base_info;
 static pthread_info_t threads[MAX_NUM_THREADS];
+static volatile bool server_running = false;
+static int listen_socket_global = INVALID_SOCKET;
 
 static const char *HTTP_RES =
 	"HTTP/1.1 200 OK\r\n"
@@ -166,22 +168,25 @@ static void client_process(void* data)
 	thread_info->thread_complete = 1;
 }
 
-static uint64_t WINAPI process(void* data) 
+static uint64_t WINAPI process(void* data)
 {
     uint16_t port = (uint16_t)data;
 
 	int listen_socket = socket_utility::host_bind(port);
-	if (listen_socket == INVALID_SOCKET) 
+	if (listen_socket == INVALID_SOCKET)
 	{
+		server_running = false;
 		return EXIT_FAILURE;
 	}
 
-	while (true)
+	listen_socket_global = listen_socket;
+
+	while (server_running)
 	{
 		int read_status = socket_utility::get_read_status(listen_socket);
 		if (read_status == SOCKET_ERROR)
 		{
-			return EXIT_FAILURE;
+			break;
 		}
 
 		int client_socket = INVALID_SOCKET;
@@ -195,9 +200,9 @@ static uint64_t WINAPI process(void* data)
 			continue;
 		}
 
-		if (client_socket == INVALID_SOCKET) 
+		if (client_socket == INVALID_SOCKET)
 		{
-			return EXIT_FAILURE;
+			continue;
 		}
 
 		int i;
@@ -217,31 +222,76 @@ static uint64_t WINAPI process(void* data)
 
 		if (i == MAX_NUM_THREADS)
 		{
+			closesocket(client_socket);
 			continue;
 		}
 
 		threads[i].active = 1;
 		threads[i].data.client_socket = client_socket;
 		threads[i].data.port = port;
-		threads[i].thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)client_process, (void*)&threads[i].data, 0, NULL);;
-
-		//client_process(threads[i].data);
+		threads[i].thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)client_process, (void*)&threads[i].data, 0, NULL);
 	}
+
+	closesocket(listen_socket);
+	listen_socket_global = INVALID_SOCKET;
 
 	return 0;
 }
 
 
+server::server()
+	: thread(NULL), running(false)
+{
+}
+
 void server::start(uint16_t port)
 {
 	memset(threads, 0, sizeof(threads));
+	running = true;
+	server_running = true;
 	thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)process, (void*)port, 0, NULL);
 }
 
 void server::stop()
 {
-	//todo: wait stopped
-	//CloseHandle(thread);
+	if (!running)
+	{
+		return;
+	}
+
+	running = false;
+	server_running = false;
+
+	// Close the listening socket to unblock accept
+	if (listen_socket_global != INVALID_SOCKET)
+	{
+		closesocket(listen_socket_global);
+	}
+
+	// Wait for the main server thread to finish
+	if (thread != NULL)
+	{
+		WaitForSingleObject(thread, 5000);
+		CloseHandle(thread);
+		thread = NULL;
+	}
+
+	// Wait for all client threads to complete
+	for (int i = 0; i < MAX_NUM_THREADS; i++)
+	{
+		if (threads[i].active && threads[i].thread != NULL)
+		{
+			WaitForSingleObject(threads[i].thread, 2000);
+			CloseHandle(threads[i].thread);
+		}
+	}
+
+	memset(threads, 0, sizeof(threads));
+}
+
+bool server::is_running()
+{
+	return running;
 }
 
 

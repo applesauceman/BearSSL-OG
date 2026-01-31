@@ -207,6 +207,15 @@ void br_x509_minimal_run(void *t0ctx);
 #if BR_USE_WIN32_TIME
 #ifdef _XBOX
 #include <xtl.h>
+/*
+ * KeQuerySystemTime is exported by the Xbox kernel (xboxkrnl.lib).
+ * It returns the current system time in 100-nanosecond intervals
+ * since January 1, 1601 (same format as FILETIME).
+ */
+#ifdef __cplusplus
+extern "C"
+#endif
+void WINAPI KeQuerySystemTime(PLARGE_INTEGER CurrentTime);
 #else
 #include <windows.h>
 #endif
@@ -1226,12 +1235,22 @@ br_x509_minimal_run(void *t0ctx)
 			vd = (uint32_t)(x / 86400) + 719528;
 			vs = (uint32_t)(x % 86400);
 #elif BR_USE_WIN32_TIME
-			FILETIME ft;
 			uint64_t x;
-
+#ifdef _XBOX
+			/*
+			 * Xbox uses KeQuerySystemTime from the kernel.
+			 * This returns time in 100-nanosecond intervals
+			 * since January 1, 1601 (same as FILETIME).
+			 */
+			LARGE_INTEGER system_time;
+			KeQuerySystemTime(&system_time);
+			x = (uint64_t)system_time.QuadPart;
+#else
+			FILETIME ft;
 			GetSystemTimeAsFileTime(&ft);
 			x = ((uint64_t)ft.dwHighDateTime << 32)
 				+ (uint64_t)ft.dwLowDateTime;
+#endif
 			x = (x / 10000000);
 			vd = (uint32_t)(x / 86400) + 584754;
 			vs = (uint32_t)(x % 86400);
